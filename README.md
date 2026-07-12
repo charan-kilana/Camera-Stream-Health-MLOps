@@ -53,17 +53,17 @@ curl http://localhost:8000/health
 docker ps
 ```
 
-The Docker image includes `models/stream_failure_model.pkl`. The model is kept
+The Docker image includes `models/model.joblib`. The model is kept
 out of Git and must be trained or downloaded before each image build.
 
 ## Continuous integration
 
 The GitHub Actions workflow runs for pushes to the `deploy` branch. It recreates
 the synthetic dataset, trains the model, uploads the model artifact to Amazon S3,
-builds and pushes commit-tagged and `latest` Docker images to Amazon ECR, updates
-the Kubernetes and KServe manifests, and commits changed manifests back to the
-branch. It requires `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` repository
-secrets plus the configured S3 bucket and ECR repository.
+updates the KServe `InferenceService`, and commits a changed manifest back to the
+branch. KServe's sklearn runtime downloads `model.joblib` from the configured S3
+directory. The workflow requires `AWS_ACCESS_KEY_ID` and
+`AWS_SECRET_ACCESS_KEY` repository secrets plus the configured S3 bucket.
 
 Example request:
 

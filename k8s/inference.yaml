@@ -3,8 +3,14 @@ kind: InferenceService
 metadata:
   name: camera-stream-health-predictor
   namespace: camera-stream-health
+  annotations:
+    serving.kserve.io/deploymentMode: Standard
 spec:
   predictor:
     serviceAccountName: sa-s3-access
-    sklearn:
-      storageUri: s3://charan-camera-stream-health-eaglesight/models/stream_failure_model.pkl
+    model:
+      modelFormat:
+        name: sklearn
+      protocolVersion: v2
+      runtime: kserve-sklearnserver
+      storageUri: s3://charan-camera-stream-health-eaglesight/models/camera-stream-health/
