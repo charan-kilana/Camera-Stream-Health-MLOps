@@ -61,8 +61,8 @@ out of Git and must be trained or downloaded before each image build.
 The GitHub Actions workflow runs for pushes to the `deploy` branch. It recreates
 the synthetic dataset, trains the model, uploads the model artifact to Amazon S3,
 updates the KServe `InferenceService`, and commits a changed manifest back to the
-branch. KServe's sklearn runtime downloads the `.pkl` model from the configured S3
-directory. The workflow requires `AWS_ACCESS_KEY_ID` and
+branch. KServe's sklearn runtime downloads the `.pkl` model from its S3 URI. The
+workflow requires `AWS_ACCESS_KEY_ID` and
 `AWS_SECRET_ACCESS_KEY` repository secrets plus the configured S3 bucket.
 
 Example request:

@@ -50,12 +50,12 @@ jobs:
       - name: Push model to S3 directly
         run: |
           aws s3 cp models/stream_failure_model.pkl \
-            s3://${{ env.S3_BUCKET }}/models/camera-stream-health/stream_failure_model.pkl
+            s3://${{ env.S3_BUCKET }}/models/stream_failure_model.pkl
           echo "Model pushed to S3 successfully"
 
       - name: Update inference manifest with S3 model path
         run: |
-          MODEL_URI="s3://${{ env.S3_BUCKET }}/models/camera-stream-health/"
+          MODEL_URI="s3://${{ env.S3_BUCKET }}/models/stream_failure_model.pkl"
           sed -i "s|storageUri: .*|storageUri: $MODEL_URI|g" k8s/inference.yaml
 
       - name: Commit updated inference manifest
