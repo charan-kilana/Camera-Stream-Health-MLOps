@@ -8,6 +8,7 @@ on:
 env:
   AWS_REGION: us-east-1
   S3_BUCKET: charan-camera-stream-health-eaglesight
+  ECR_REPOSITORY: camera-stream-health-api
 
 jobs:
   train-and-deploy:
@@ -53,15 +54,40 @@ jobs:
             s3://${{ env.S3_BUCKET }}/models/stream_failure_model.pkl
           echo "Model pushed to S3 successfully"
 
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          IMAGE_URI="$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}"
+          docker build \
+            --tag "$IMAGE_URI:$IMAGE_TAG" \
+            --tag "$IMAGE_URI:latest" .
+          docker push "$IMAGE_URI:$IMAGE_TAG"
+          docker push "$IMAGE_URI:latest"
+          echo "Docker image pushed to $IMAGE_URI:$IMAGE_TAG"
+
       - name: Update inference manifest with S3 model path
         run: |
           MODEL_URI="s3://${{ env.S3_BUCKET }}/models/stream_failure_model.pkl"
           sed -i "s|storageUri: .*|storageUri: $MODEL_URI|g" k8s/inference.yaml
 
+      - name: Update Kubernetes deployment with ECR image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          IMAGE_URI="$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG"
+          sed -i "s|image: .*|image: $IMAGE_URI|g" k8s/deployment.yaml
+
       - name: Commit updated inference manifest
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add k8s/inference.yaml
-          git commit -m "Update camera model S3 path [skip ci]" || echo "No changes"
+          git add k8s/inference.yaml k8s/deployment.yaml
+          git commit -m "Update camera deployment artifacts [skip ci]" || echo "No changes"
           git push || echo "No changes to push"

@@ -60,9 +60,10 @@ out of Git and must be trained or downloaded before each image build.
 
 The GitHub Actions workflow runs for pushes to the `deploy` branch. It recreates
 the synthetic dataset, trains the model, uploads the model artifact to Amazon S3,
-updates the KServe inference manifest, and commits a changed manifest back to the
+builds and pushes commit-tagged and `latest` Docker images to Amazon ECR, updates
+the Kubernetes and KServe manifests, and commits changed manifests back to the
 branch. It requires `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` repository
-secrets and an existing S3 bucket matching the workflow configuration.
+secrets plus the configured S3 bucket and ECR repository.
 
 Example request:
 

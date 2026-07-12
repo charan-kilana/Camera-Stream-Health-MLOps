@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: camera-stream-health
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: camera-stream-health-api
+  namespace: camera-stream-health
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: camera-stream-health-api
+  template:
+    metadata:
+      labels:
+        app: camera-stream-health-api
+    spec:
+      imagePullSecrets:
+        - name: ecr-registry-secret
+      containers:
+        - name: camera-stream-health-api
+          image: 830283279505.dkr.ecr.us-east-1.amazonaws.com/camera-stream-health-api:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: camera-stream-health-api
+  namespace: camera-stream-health
+spec:
+  selector:
+    app: camera-stream-health-api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+  type: ClusterIP
