@@ -1,0 +1,6 @@
+data/*.csv
+models/*.pkl
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
