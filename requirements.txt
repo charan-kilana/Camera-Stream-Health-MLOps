@@ -1,5 +1,4 @@
 fastapi>=0.109.0
-joblib>=1.4.0
 numpy>=1.26.0
 pandas>=2.2.0
 pydantic>=2.5.0

@@ -1,6 +1,5 @@
 data/*.csv
 models/*.pkl
-models/*.joblib
 .venv/
 __pycache__/
 *.pyc

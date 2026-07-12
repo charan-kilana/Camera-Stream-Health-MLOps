@@ -1,8 +1,8 @@
 """Train and save the camera-stream failure classifier."""
 
 from pathlib import Path
+import pickle
 
-import joblib
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report, roc_auc_score
@@ -10,7 +10,7 @@ from sklearn.model_selection import train_test_split
 
 
 DATA_PATH = Path("data/camera_stream_telemetry.csv")
-MODEL_PATH = Path("models/model.joblib")
+MODEL_PATH = Path("models/stream_failure_model.pkl")
 FEATURES = [
     "fps",
     "latency_ms",
@@ -49,7 +49,8 @@ def train_model() -> RandomForestClassifier:
     print(classification_report(y_test, predictions))
 
     MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(model, MODEL_PATH)
+    with MODEL_PATH.open("wb") as model_file:
+        pickle.dump(model, model_file)
     print(f"Model saved to {MODEL_PATH}")
     return model
 

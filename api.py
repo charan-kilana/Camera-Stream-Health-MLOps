@@ -1,14 +1,14 @@
 """FastAPI service for camera-stream failure prediction."""
 
 from pathlib import Path
+import pickle
 
 from fastapi import FastAPI, HTTPException
-import joblib
 import numpy as np
 from pydantic import BaseModel, Field
 
 
-MODEL_PATH = Path("models/model.joblib")
+MODEL_PATH = Path("models/stream_failure_model.pkl")
 app = FastAPI(title="Camera Stream Health API", version="1.0.0")
 
 
@@ -25,7 +25,8 @@ def load_model():
     """Load the trained model when it is available."""
     if not MODEL_PATH.exists():
         return None
-    return joblib.load(MODEL_PATH)
+    with MODEL_PATH.open("rb") as model_file:
+        return pickle.load(model_file)
 
 
 model = load_model()

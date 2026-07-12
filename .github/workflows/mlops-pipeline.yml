@@ -38,7 +38,7 @@ jobs:
         run: python train.py
 
       - name: Verify model artifact
-        run: test -s models/model.joblib
+        run: test -s models/stream_failure_model.pkl
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
@@ -49,8 +49,8 @@ jobs:
 
       - name: Push model to S3 directly
         run: |
-          aws s3 cp models/model.joblib \
-            s3://${{ env.S3_BUCKET }}/models/camera-stream-health/model.joblib
+          aws s3 cp models/stream_failure_model.pkl \
+            s3://${{ env.S3_BUCKET }}/models/camera-stream-health/stream_failure_model.pkl
           echo "Model pushed to S3 successfully"
 
       - name: Update inference manifest with S3 model path
