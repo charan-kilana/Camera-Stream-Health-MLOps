@@ -56,6 +56,14 @@ docker ps
 The Docker image includes `models/stream_failure_model.pkl`. The model is kept
 out of Git and must be trained or downloaded before each image build.
 
+## Continuous integration
+
+The GitHub Actions workflow runs for pushes to the `deploy` branch. It recreates
+the synthetic dataset, trains the model, uploads the model artifact to Amazon S3,
+updates the KServe inference manifest, and commits a changed manifest back to the
+branch. It requires `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` repository
+secrets and an existing S3 bucket matching the workflow configuration.
+
 Example request:
 
 ```json

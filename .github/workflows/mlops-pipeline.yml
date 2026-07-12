@@ -1,0 +1,66 @@
+name: MLOps Pipeline
+
+on:
+  push:
+    branches: [deploy]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  S3_BUCKET: charan-camera-stream-health-eaglesight
+
+jobs:
+  train-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required to push manifest updates
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Generate dataset
+        run: python generate_data.py
+
+      - name: Train model
+        run: python train.py
+
+      - name: Verify model artifact
+        run: test -s models/stream_failure_model.pkl
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Push model to S3 directly
+        run: |
+          aws s3 cp models/stream_failure_model.pkl \
+            s3://${{ env.S3_BUCKET }}/models/stream_failure_model.pkl
+          echo "Model pushed to S3 successfully"
+
+      - name: Update inference manifest with S3 model path
+        run: |
+          MODEL_URI="s3://${{ env.S3_BUCKET }}/models/stream_failure_model.pkl"
+          sed -i "s|storageUri: .*|storageUri: $MODEL_URI|g" k8s/inference.yaml
+
+      - name: Commit updated inference manifest
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add k8s/inference.yaml
+          git commit -m "Update camera model S3 path [skip ci]" || echo "No changes"
+          git push || echo "No changes to push"
