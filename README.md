@@ -35,6 +35,27 @@ python api.py
 
 Open `http://localhost:8000/docs` to test the API.
 
+## Run with Docker
+
+Generate the dataset and train the model before building the image:
+
+```bash
+python generate_data.py
+python train.py
+docker build -t camera-stream-health-api:latest .
+docker run --rm -p 8000:8000 --name camera-health-api camera-stream-health-api:latest
+```
+
+Open `http://localhost:8000/docs` for Swagger UI or check container health:
+
+```bash
+curl http://localhost:8000/health
+docker ps
+```
+
+The Docker image includes `models/stream_failure_model.pkl`. The model is kept
+out of Git and must be trained or downloaded before each image build.
+
 Example request:
 
 ```json
