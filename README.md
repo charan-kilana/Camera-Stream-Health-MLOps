@@ -76,47 +76,65 @@ The project demonstrates two independent serving paths:
   KServe's built-in scikit-learn runtime. This path does not use `api.py` or the
   project Docker image and returns the generic `predictions` response.
 
-## Deploy with KServe on KIND
+## KServe deployment on KIND
 
 The tested local environment uses Kubernetes 1.32.2, cert-manager, KServe
 0.16.0, and KServe `RawDeployment` mode.
 
-Create or select the KIND cluster:
+### 1. Create the KIND cluster
 
 ```bash
 kind create cluster --name camera-health --image kindest/node:v1.32.2
 kubectl config use-context kind-camera-health
+kubectl get nodes
 ```
 
-Install cert-manager:
+### 2. Install cert-manager
 
 ```bash
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+
 kubectl wait --for=condition=Available deployment --all \
   --namespace cert-manager --timeout=300s
 ```
 
-Install the KServe CRDs and controller:
+### 3. Install the KServe CRDs
 
 ```bash
 kubectl create namespace kserve
 
 helm install kserve-crd oci://ghcr.io/kserve/charts/kserve-crd \
-  --version v0.16.0 -n kserve --wait
-
-helm install kserve oci://ghcr.io/kserve/charts/kserve \
-  --version v0.16.0 -n kserve \
-  --set kserve.controller.deploymentMode=RawDeployment --wait
+  --version v0.16.0 \
+  --namespace kserve \
+  --wait
 ```
 
-Create the application namespace and ServiceAccount. The tracked manifest does
-not contain AWS credentials:
+### 4. Install the KServe controller
+
+```bash
+helm install kserve oci://ghcr.io/kserve/charts/kserve \
+  --version v0.16.0 \
+  --namespace kserve \
+  --set kserve.controller.deploymentMode=RawDeployment \
+  --wait
+```
+
+Verify the controller:
+
+```bash
+kubectl get pods -n kserve
+```
+
+### 5. Configure private S3 access
+
+Apply the namespace, empty Secret template, and ServiceAccount:
 
 ```bash
 kubectl apply -f k8s/serviceaccount.yaml
 ```
 
-Create the S3 secret locally without placing credentials in Git:
+Keep AWS credentials out of Git. Enter them only in the local shell and replace
+the empty Kubernetes Secret:
 
 ```bash
 read -p "AWS Access Key ID: " AWS_ACCESS_KEY_ID
@@ -126,34 +144,50 @@ echo
 kubectl create secret generic s3-secret \
   --namespace ml-eagle \
   --from-literal=AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
-  --from-literal=AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
+  --from-literal=AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+  --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl annotate secret s3-secret --namespace ml-eagle \
   serving.kserve.io/s3-endpoint=s3.amazonaws.com \
   serving.kserve.io/s3-usehttps="1" \
-  serving.kserve.io/s3-region=us-east-1 --overwrite
+  serving.kserve.io/s3-region=us-east-1 \
+  --overwrite
 
 unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
 ```
 
-Deploy the model and wait for it to become ready:
+### 6. Deploy the camera stream model
+
+The `InferenceService` downloads this model from S3:
+
+```text
+s3://charan-camera-stream-health-eaglesight/models/stream_failure_model.pkl
+```
+
+Deploy and check it:
 
 ```bash
 kubectl apply -f k8s/inference.yaml
-kubectl get inferenceservice -n ml-eagle
+kubectl get inferenceservice camera-stream-health-predictor -n ml-eagle
 kubectl get pods -n ml-eagle
+kubectl get service -n ml-eagle
 ```
 
-Port-forward the generated KServe service in one terminal:
+### 7. Port-forward the generated service
+
+Keep this command running in one terminal:
 
 ```bash
 kubectl port-forward -n ml-eagle \
   service/camera-stream-health-predictor-predictor 8080:80
 ```
 
-Test a high-risk camera stream from another terminal. Feature order is `fps`,
-`latency_ms`, `packet_loss_percent`, `bitrate_kbps`, `reconnect_count`, and
-`uptime_hours`:
+### 8. Test KServe inference
+
+Feature order is `fps`, `latency_ms`, `packet_loss_percent`, `bitrate_kbps`,
+`reconnect_count`, and `uptime_hours`.
+
+High-risk stream:
 
 ```bash
 curl -s -X POST -H "Content-Type: application/json" \
@@ -167,25 +201,27 @@ Expected response:
 {"predictions":[1]}
 ```
 
-Example request:
+Healthy stream:
 
-```json
-{
-  "fps": 8.0,
-  "latency_ms": 650.0,
-  "packet_loss_percent": 12.0,
-  "bitrate_kbps": 700.0,
-  "reconnect_count": 5,
-  "uptime_hours": 3.0
-}
+```bash
+curl -s -X POST -H "Content-Type: application/json" \
+  -d '{"instances":[[29,40,0.2,4200,0,300]]}' \
+  http://localhost:8080/v1/models/camera-stream-health-predictor:predict
 ```
 
-Example response:
+Expected response:
 
 ```json
-{
-  "stream_failure": 1,
-  "failure_probability": 0.89,
-  "risk_level": "high"
-}
+{"predictions":[0]}
+```
+
+### 9. Cleanup
+
+```bash
+kubectl delete inferenceservice camera-stream-health-predictor -n ml-eagle
+kubectl delete namespace ml-eagle
+helm uninstall kserve -n kserve
+helm uninstall kserve-crd -n kserve
+kubectl delete namespace kserve
+kind delete cluster --name camera-health
 ```
