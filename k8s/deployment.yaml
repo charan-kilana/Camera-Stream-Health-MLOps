@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: camera-stream-health-api
-          image: your-dockerhub-username/camera-stream-health-api:latest
+          image: charansuryakilana/camera-stream-health-api:53783fa4332db9b6e0f52aef145e555aeb236a86
           imagePullPolicy: Always
           ports:
             - name: http
