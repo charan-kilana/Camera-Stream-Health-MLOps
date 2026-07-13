@@ -148,7 +148,60 @@ curl -X POST http://localhost:8080/predict \
 
 The response contains `stream_failure`, `failure_probability`, and `risk_level`.
 
-### 5. Deploy a newer image
+### 5. Add Traefik Ingress
+
+The direct Service port-forward above is sufficient for basic testing. To match
+the Ingress flow from the reference project, install Traefik with its official
+Helm chart:
+
+```bash
+helm repo add traefik https://traefik.github.io/charts
+helm repo update
+
+helm upgrade --install traefik traefik/traefik \
+  --namespace traefik \
+  --create-namespace \
+  --wait
+
+kubectl get pods,service -n traefik
+```
+
+Apply the application Ingress:
+
+```bash
+kubectl apply -f k8s/ingress.yaml
+kubectl get ingress -n camera-health
+```
+
+On a cloud cluster, Traefik's `LoadBalancer` Service can receive an external
+address. KIND has no cloud load balancer by default, so port-forward Traefik in
+one terminal:
+
+```bash
+kubectl port-forward -n traefik service/traefik 8081:80
+```
+
+Test routing through the Ingress from another terminal. The `Host` header must
+match `camera-health.local` from `k8s/ingress.yaml`:
+
+```bash
+curl -H "Host: camera-health.local" \
+  http://localhost:8081/health
+
+curl -X POST http://localhost:8081/predict \
+  -H "Host: camera-health.local" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fps": 8,
+    "latency_ms": 650,
+    "packet_loss_percent": 12,
+    "bitrate_kbps": 700,
+    "reconnect_count": 5,
+    "uptime_hours": 3
+  }'
+```
+
+### 6. Deploy a newer image
 
 After a later pipeline run and `git pull`, apply the updated immutable tag:
 
@@ -158,9 +211,11 @@ kubectl rollout status deployment/camera-stream-health-api \
   --namespace camera-health --timeout=300s
 ```
 
-### 6. Cleanup
+### 7. Cleanup
 
 ```bash
+helm uninstall traefik -n traefik
+kubectl delete namespace traefik
 kubectl delete namespace camera-health
 kind delete cluster --name camera-api
 ```

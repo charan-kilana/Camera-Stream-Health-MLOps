@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: camera-stream-health-api
+  namespace: camera-health
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: camera-health.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: camera-stream-health-api
+                port:
+                  number: 80
