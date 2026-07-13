@@ -9,7 +9,9 @@ The repository follows a simple MLOps workflow:
 2. Train and evaluate a Random Forest classifier.
 3. Save the trained model.
 4. Serve custom predictions through FastAPI and Docker.
-5. Serve the S3 model through KServe on a local KIND cluster.
+5. Build and publish the API image to Amazon ECR.
+6. Deploy the image as a standard Kubernetes Deployment and Service.
+7. Alternatively, serve the S3 model through KServe on a local KIND cluster.
 
 ## Model inputs
 
@@ -59,12 +61,115 @@ out of Git and must be trained or downloaded before each image build.
 
 ## Continuous integration
 
-The GitHub Actions workflow runs for pushes to the `deploy` branch. It recreates
-the synthetic dataset, trains the model, uploads the model artifact to Amazon S3,
-updates the KServe `InferenceService`, and commits a changed manifest back to the
-branch. KServe's sklearn runtime downloads the `.pkl` model from its S3 URI. The
-workflow requires `AWS_ACCESS_KEY_ID` and
-`AWS_SECRET_ACCESS_KEY` repository secrets plus the configured S3 bucket.
+On the `k8s-deploy` branch, GitHub Actions recreates the dataset, trains the
+model, builds the FastAPI image, and pushes two tags to Amazon ECR:
+
+- The Git commit SHA, used as the immutable Kubernetes deployment tag.
+- `latest`, provided as a convenient development tag.
+
+The workflow then updates `k8s/deployment.yaml` with the immutable image tag and
+commits it back using `[skip ci]`. The workflow requires the repository secrets
+`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. The AWS identity must be able to
+authenticate to ECR and push to the `camera-stream-health-api` repository.
+
+## Kubernetes image deployment on KIND
+
+This path deploys `api.py` and the trained model packaged together inside the
+Docker image. KServe, cert-manager, S3 model downloading, and
+`k8s/inference.yaml` are not involved.
+
+### 1. Build and publish the image
+
+Push a commit to `k8s-deploy`, then wait for the **Build and Publish Kubernetes
+Image** workflow to finish. Pull the workflow's manifest commit before applying
+it locally:
+
+```bash
+git switch k8s-deploy
+git pull origin k8s-deploy
+```
+
+The image is published under:
+
+```text
+830283279505.dkr.ecr.us-east-1.amazonaws.com/camera-stream-health-api
+```
+
+### 2. Create a separate KIND cluster
+
+```bash
+kind create cluster --name camera-api --image kindest/node:v1.32.2
+kubectl config use-context kind-camera-api
+kubectl get nodes
+```
+
+### 3. Create the namespace and ECR pull secret
+
+The ECR repository is private, so the cluster needs a registry credential. This
+command uses the AWS CLI credentials on your laptop and stores the short-lived
+ECR token only as a Kubernetes Secret:
+
+```bash
+kubectl apply -f k8s/namespace.yaml
+
+kubectl create secret docker-registry ecr-registry-secret \
+  --namespace camera-health \
+  --docker-server=830283279505.dkr.ecr.us-east-1.amazonaws.com \
+  --docker-username=AWS \
+  --docker-password="$(aws ecr get-login-password --region us-east-1)" \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+ECR login tokens expire, so rerun the Secret command if image pulling later
+starts failing with an authorization error.
+
+### 4. Deploy the API
+
+```bash
+kubectl apply -f k8s/deployment.yaml
+kubectl apply -f k8s/service.yaml
+
+kubectl rollout status deployment/camera-stream-health-api \
+  --namespace camera-health --timeout=300s
+
+kubectl get pods,service -n camera-health
+```
+
+### 5. Access and test the API
+
+Keep the port-forward running in one terminal:
+
+```bash
+kubectl port-forward -n camera-health \
+  service/camera-stream-health-api 8080:80
+```
+
+From another terminal, test the health and prediction endpoints:
+
+```bash
+curl http://localhost:8080/health
+
+curl -X POST http://localhost:8080/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fps": 8,
+    "latency_ms": 650,
+    "packet_loss_percent": 12,
+    "bitrate_kbps": 700,
+    "reconnect_count": 5,
+    "uptime_hours": 3
+  }'
+```
+
+Unlike the KServe endpoint, this custom FastAPI endpoint returns
+`stream_failure`, `failure_probability`, and `risk_level`.
+
+### 6. Cleanup
+
+```bash
+kubectl delete namespace camera-health
+kind delete cluster --name camera-api
+```
 
 ## Inference options
 

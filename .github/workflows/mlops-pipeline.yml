@@ -1,4 +1,4 @@
-name: MLOps Pipeline
+name: Build and Publish Kubernetes Image
 
 on:
   push:
@@ -7,14 +7,14 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  S3_BUCKET: charan-camera-stream-health-eaglesight
+  ECR_REPOSITORY: camera-stream-health-api
 
 jobs:
-  train-and-deploy:
+  train-build-publish:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents: write  # Required to push manifest updates
+      contents: write
 
     steps:
       - name: Checkout code
@@ -47,21 +47,30 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Push model to S3 directly
-        run: |
-          aws s3 cp models/stream_failure_model.pkl \
-            s3://${{ env.S3_BUCKET }}/models/stream_failure_model.pkl
-          echo "Model pushed to S3 successfully"
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Update inference manifest with S3 model path
-        run: |
-          MODEL_URI="s3://${{ env.S3_BUCKET }}/models/stream_failure_model.pkl"
-          sed -i "s|storageUri: .*|storageUri: $MODEL_URI|g" k8s/inference.yaml
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Commit updated inference manifest
+      - name: Update Kubernetes Deployment image
+        run: |
+          IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${GITHUB_SHA}"
+          sed -i "s|image: .*|image: $IMAGE_URI|" k8s/deployment.yaml
+
+      - name: Commit immutable image tag
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add k8s/inference.yaml
-          git commit -m "Update camera model S3 path [skip ci]" || echo "No changes"
-          git push || echo "No changes to push"
+          git add k8s/deployment.yaml
+          git commit -m "Update Kubernetes image tag [skip ci]" || echo "No manifest change"
+          git push
