@@ -2,7 +2,7 @@ name: MLOps Pipeline
 
 on:
   push:
-    branches: [deploy]
+    branches: [k8s-deploy]
   workflow_dispatch:
 
 env:
