@@ -15,11 +15,9 @@ spec:
       labels:
         app: camera-stream-health-api
     spec:
-      imagePullSecrets:
-        - name: ecr-registry-secret
       containers:
         - name: camera-stream-health-api
-          image: 830283279505.dkr.ecr.us-east-1.amazonaws.com/camera-stream-health-api:latest
+          image: your-dockerhub-username/camera-stream-health-api:latest
           imagePullPolicy: Always
           ports:
             - name: http
