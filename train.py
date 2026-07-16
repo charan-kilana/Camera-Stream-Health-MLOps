@@ -4,13 +4,17 @@ from pathlib import Path
 import pickle    # pickle is a built-in Python module used to save Python objects into a file. ex: In this project, the trained Random Forest model is a Python object. In this project, the trained Random Forest model is a Python object.
  
 import pandas as pd
+# This imports the Random Forest classification algorithm from scikit-learn.
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report, roc_auc_score
+# imports functions from the classifer. accuracy score calculates (correct predictions/ total predictions), classicification report provides precision, F1-score and roc_auc_score measures how well model is?
 from sklearn.model_selection import train_test_split
 
 
 DATA_PATH = Path("data/camera_stream_telemetry.csv")
 MODEL_PATH = Path("models/stream_failure_model.pkl")
+
+# Why no camera id and stream_failure b/c both doesnt make sense, camera id doesnt depened on predcition and stream failure is what we want to find. 
 FEATURES = [
     "fps",
     "latency_ms",
@@ -35,6 +39,8 @@ def train_model() -> RandomForestClassifier:
         stratify=target,
     )
 
+    # Creates a new emotymodel object. 
+    # n_estimators specifies how many decision trees the Random Forest should build. Each decision tree makes its own prediction, and the Random Forest uses majority voting to produce the final prediction. In my project, I used 200 trees."
     model = RandomForestClassifier(
         n_estimators=200,
         random_state=42,
