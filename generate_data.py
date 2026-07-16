@@ -1,28 +1,37 @@
-"""Generate reproducible synthetic camera-stream telemetry."""
+"""Generate reproducible synthetic camera-stream telemetry."""    # Comment
 
-from pathlib import Path
+from pathlib import Path     # To use later instead of hardscoding for files and folders ex: OUTPUT_PATH = Path("data/camera_stream_telemetry.csv")
 
-import numpy as np
-import pandas as pd
-
-
-RANDOM_SEED = 42
-SAMPLE_COUNT = 5_000
-OUTPUT_PATH = Path("data/camera_stream_telemetry.csv")
+import numpy as np    # used for generating random numerical, create arrays, perform numeric operations.
+import pandas as pd   # used to create dataframe example excel csv.
 
 
-def generate_camera_data(
+RANDOM_SEED = 42    # To generate same data on everyrun. 42 is justt convention inspired from soemhwer.
+SAMPLE_COUNT = 5_000    # Sample count
+OUTPUT_PATH = Path("data/camera_stream_telemetry.csv")     # Path where generated sample data should be stored.
+
+
+# Create a function to generate data which takes input as sample count and seed where it returns a pandas dataframe.
+def generate_camera_data(        
     sample_count: int = SAMPLE_COUNT, seed: int = RANDOM_SEED
 ) -> pd.DataFrame:
     """Create correlated telemetry and a probabilistic stream-failure label."""
+    # We're just defining a rng i.e random generator which will be used to generate random number and can be called rng.choice, rng.uniform, rng.normal.
     rng = np.random.default_rng(seed)
 
     # Hidden operating conditions keep related measurements realistic.
+    # creates an array of random choice maintaing the see which generated sample count 5000 records where healthy 65%, degraded 25% and 10% to be critical.
+
+    """
+    Instead of generating each metric independently, I first simulated the overall operating condition of each camera stream—healthy, degraded, or critical. Then I generated FPS, latency, packet loss, bitrate, and reconnect count based on that condition. This kept the telemetry internally consistent and much closer to real-world behavior.
+    """
     condition = rng.choice(
         ["healthy", "degraded", "critical"],
         size=sample_count,
         p=[0.65, 0.25, 0.10],
     )
+
+    # ranges is a dictionary where it stores key value format. Ex: ranges["Healthy"]["fps"] should generate (24.0 to 30.0). Later numpy will generate the data. 
     ranges = {
         "healthy": {
             "fps": (24.0, 30.0),
