@@ -1,8 +1,8 @@
 """Train and save the camera-stream failure classifier."""
 
 from pathlib import Path
-import pickle
-
+import pickle    # pickle is a built-in Python module used to save Python objects into a file. ex: In this project, the trained Random Forest model is a Python object. In this project, the trained Random Forest model is a Python object.
+ 
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report, roc_auc_score
